@@ -73,15 +73,50 @@ export function normalise(text) {
     .trim();
 }
 
+function editDistance(a, b) {
+  if (a === b) return 0;
+  if (Math.abs(a.length - b.length) > 3) return 9;
+  let previous = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= a.length; i++) {
+    const current = [i];
+    for (let j = 1; j <= b.length; j++) {
+      current[j] = Math.min(previous[j] + 1, current[j - 1] + 1, previous[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    }
+    previous = current;
+  }
+  return previous[b.length];
+}
+
+/** How far off a word is allowed to be and still count as a match. */
+const slack = (word) => (word.length <= 4 ? 1 : word.length <= 8 ? 2 : 3);
+
+/** Does one word of the query match one word of the text? */
+function wordMatches(word, textWords, text) {
+  if (text.includes(word)) return true;
+  if (textWords.some((w) => w.startsWith(word))) return true;
+  const limit = slack(word);
+  return textWords.some((w) => editDistance(w, word) <= limit);
+}
+
+/**
+ * The same loose matching the bot uses, so the site and the bot agree.
+ * Every word of the query has to match somewhere in the name, which lets
+ * "silent hart" find Silentheart and "needles eye" find Needle's Eye.
+ */
 export function searchRows(rows, query) {
   const q = normalise(query);
   if (!q) return rows;
-  const words = q.split(' ');
+  const words = q.split(' ').filter(Boolean);
+
   return rows.filter((row) => {
     const name = normalise(row.name);
-    if (words.every((w) => name.includes(w))) return true;
+    const nameWords = name.split(' ');
+    if (words.every((w) => wordMatches(w, nameWords, name))) return true;
+
     const hay = normalise([row.category, row.rarity, row.description, row.details, row.type, row.tier].filter(Boolean).join(' '));
-    return words.every((w) => hay.includes(w));
+    if (!hay) return false;
+    const hayWords = hay.split(' ');
+    return words.every((w) => wordMatches(w, hayWords, hay));
   });
 }
 
