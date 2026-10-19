@@ -46,9 +46,12 @@ export function getCounts() {
 
 export async function loadKind(key) {
   if (state.data[key]) return state.data[key];
-  const urls = [];
+  // The copy next to the site is used first. It is served by the site host
+  // itself, so it is always current. The repo copy is the fallback, and it can
+  // be a few minutes behind because that CDN caches for five minutes and
+  // ignores the query string.
+  const urls = [`./data/${key}.json`];
   if (state.base) urls.push(`${state.base}/${key}.json`);
-  urls.push(`./data/${key}.json`);
   for (const url of urls) {
     try {
       const r = await fetch(url, { cache: 'no-store' });
